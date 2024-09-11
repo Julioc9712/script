@@ -1,93 +1,85 @@
 #!/usr/bin/env bash
 
-# Verifica si la arquitectura es arm64 o amd64
-function arch_check() {
-  ARCH=$(dpkg --print-architecture)
-  if [ "$ARCH" != "amd64" ] && [ "$ARCH" != "arm64" ]; then
-    echo -e "\nError: ¡Este script solo funciona en arquitecturas amd64 o arm64!\n"
-    exit 1
-  fi
-}
+# Adaptado para ARM64 por la Raspberry Pi 5
 
-# Mostrar encabezado
 function header_info {
-  clear
-  cat <<"EOF"
-   ____                 _       __     __
-  / __ \____  ___  ____| |     / /____/ /_
- / / / / __ \/ _ \/ __ \ | /| / / ___/ __/
-/ /_/ / /_/ /  __/ / / / |/ |/ / /  / /_
-\____/ .___/\___/_/ /_/|__/|__/_/   \__/
-    /_/ W I R E L E S S   F R E E D O M
+clear
+cat <<"EOF"
+  ______          __          _ __  _                    ____  _   _______
+ /_  __/__  _____/ /_  ____  (_) /_(_)_  ______ ___     / __ \/ | / / ___/
+  / / / _ \/ ___/ __ \/ __ \/ / __/ / / / / __  __ \   / / / /  |/ /\__ \ 
+ / / /  __/ /__/ / / / / / / / /_/ / /_/ / / / / / /  / /_/ / /|  /___/ / 
+/_/  \___/\___/_/ /_/_/ /_/_/\__/_/\__,_/_/ /_/ /_/  /_____/_/ |_//____/  
+ 
 EOF
 }
-
-# Función para obtener la URL correcta de OpenWrt para arm64
-function get_openwrt_url() {
-  echo "Obteniendo la URL para la imagen de disco de OpenWrt..."
-
-  ARCH=$(dpkg --print-architecture)
-  response=$(curl -s https://downloads.openwrt.org/releases/)
-  stableversion=$(echo "$response" | grep -oP 'href="\K[0-9]+\.[0-9]+\.[0-9]+(?=/")' | sort -V | tail -1)
-
-  case "$ARCH" in
-    amd64)
-      TARGET_ARCH="x86/64"
-      IMAGE_NAME="openwrt-${stableversion}-x86-64-generic-ext4-combined.img.gz"
-      ;;
-    arm64)
-      TARGET_ARCH="armvirt/64"
-      IMAGE_NAME="openwrt-${stableversion}-armvirt-64-generic-ext4-combined.img.gz"
-      ;;
-    *)
-      echo "Error: Arquitectura no soportada: $ARCH"
-      exit 1
-      ;;
-  esac
-
-  URL_BASE="https://downloads.openwrt.org/releases/${stableversion}/targets/${TARGET_ARCH}"
-  URL="${URL_BASE}/${IMAGE_NAME}"
-
-  echo "URL de descarga: $URL"
-}
-
-# Descargar y preparar la imagen
-function download_and_prepare_image() {
-  echo "Descargando la imagen..."
-  wget -q --show-progress $URL
-  FILE=$(basename $URL)
-  echo "Descargado: $FILE"
-
-  echo "Descomprimiendo la imagen..."
-  gunzip -f $FILE
-  FILE="${FILE%.gz}"
-
-  echo "Redimensionando la imagen a 512 MB..."
-  qemu-img resize -f raw $FILE 512M
-}
-
-# Crear la VM en Proxmox
-function create_openwrt_vm() {
-  echo "Creando la VM de OpenWrt..."
-
-  VMID=$(pvesh get /cluster/nextid)
-  STORAGE="local"  # Cambia esto si usas otro almacenamiento
-  CORES=1
-  RAM=256
-
-  qm create $VMID -name openwrt -memory $RAM -cores $CORES -net0 virtio,bridge=vmbr0
-  qm importdisk $VMID $FILE $STORAGE
-  qm set $VMID -scsihw virtio-scsi-pci -scsi0 ${STORAGE}:vm-${VMID}-disk-0
-  qm set $VMID -boot order=scsi0 -serial0 socket -vga serial0 -ostype l26
-  qm set $VMID -agent enabled=1 -hotplug disk,network,usb,memory,cpu
-  qm start $VMID
-
-  echo "VM de OpenWrt creada con ID: $VMID"
-}
-
-# Comprobación de arquitectura, descarga e instalación
-arch_check
 header_info
-get_openwrt_url
-download_and_prepare_image
-create_openwrt_vm
+echo -e "Loading..."
+APP="Technitium DNS"
+var_disk="2"
+var_cpu="1"
+var_ram="512"
+var_os="debian"
+var_version="12"
+variables
+color
+catch_errors
+
+function default_settings() {
+  CT_TYPE="1"
+  PW=""
+  CT_ID=$NEXTID
+  HN=$NSAPP
+  DISK_SIZE="$var_disk"
+  CORE_COUNT="$var_cpu"
+  RAM_SIZE="$var_ram"
+  BRG="vmbr0"
+  NET="dhcp"
+  GATE=""
+  APT_CACHER=""
+  APT_CACHER_IP=""
+  DISABLEIP6="no"
+  MTU=""
+  SD=""
+  NS=""
+  MAC=""
+  VLAN=""
+  SSH="no"
+  VERB="no"
+  echo_default
+}
+
+function update_script() {
+header_info
+if [[ ! -d /etc/dns ]]; then msg_error "No ${APP} Installation Found!"; exit; fi
+msg_info "Updating ${APP}"
+
+if ! dpkg -s aspnetcore-runtime-8.0 > /dev/null 2>&1; then
+    wget -q https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb
+    dpkg -i packages-microsoft-prod.deb &>/dev/null
+    apt-get update &>/dev/null
+    apt-get install -y aspnetcore-runtime-8.0 &>/dev/null
+    rm packages-microsoft-prod.deb
+fi
+bash <(curl -fsSL https://download.technitium.com/dns/install.sh) &>/dev/null
+msg_ok "Updated Successfully"
+exit
+}
+
+# Ajustes para compatibilidad con ARM64
+function arm64_settings() {
+  if [[ $(dpkg --print-architecture) != "arm64" ]]; then
+    msg_error "Este script está diseñado para ARM64. Se ha detectado una arquitectura diferente."
+    exit 1
+  fi
+  echo "Configurando para ARM64..."
+}
+
+start
+arm64_settings
+build_container
+description
+
+msg_ok "Completed Successfully!\n"
+echo -e "${APP} should be reachable by going to the following URL.
+         ${BL}http://${IP}:5380${CL} \n"
