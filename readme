@@ -71,7 +71,7 @@ function create_openwrt_vm() {
   echo "Creando la VM de OpenWrt..."
 
   VMID=$(pvesh get /cluster/nextid)
-  STORAGE="local-lvm"  # Cambia esto si usas otro almacenamiento
+  STORAGE="local"  # Cambia esto si usas otro almacenamiento
   CORES=1
   RAM=256
 
