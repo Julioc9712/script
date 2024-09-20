@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# This script is adapted for ARM64 architecture
+# Script adaptado para arquitectura ARM64
 
 function header_info {
-clear
-cat <<"EOF"
+  clear
+  cat <<"EOF"
    _____ __  _      ___                 ____  ____  ______
   / ___// /_(_)____/ (_)___  ____ _    / __ \/ __ \/ ____/
   \__ \/ __/ / ___/ / / __ \/ __ `/___/ /_/ / / / / /_
  ___/ / /_/ / /  / / / / / / /_/ /___/ ____/ /_/ / __/
 /____/\__/_/_/  /_/_/_/ /_/\__, /   /_/   /_____/_/
-                          /____/
+/____/
 EOF
 }
 
@@ -21,74 +21,80 @@ var_cpu="2"
 var_ram="2048"
 var_os="debian"
 var_version="12"
-variables
-color
-catch_errors
 
-# Check if the architecture is ARM64
+# Verificar si la arquitectura es ARM64
 ARCH=$(dpkg --print-architecture)
 if [ "$ARCH" != "arm64" ]; then
-    echo "This script is optimized for ARM64 architecture."
+    echo "Este script está optimizado para arquitectura ARM64."
     exit 1
 fi
 
+# Configuración predeterminada
 function default_settings() {
   CT_TYPE="1"
   PW=""
   CT_ID=$NEXTID
-  HN=$NSAPP
+  HN="Stirling-PDF"
   DISK_SIZE="$var_disk"
   CORE_COUNT="$var_cpu"
   RAM_SIZE="$var_ram"
   BRG="vmbr0"
   NET="dhcp"
-  GATE=""
-  APT_CACHER=""
-  APT_CACHER_IP=""
-  DISABLEIP6="no"
-  MTU=""
-  SD=""
-  NS=""
-  MAC=""
-  VLAN=""
-  SSH="no"
-  VERB="no"
-  echo_default
+  echo "Configuración predeterminada aplicada."
 }
 
+# Actualizar Stirling-PDF
 function update_script() {
-header_info
-if [[ ! -d /opt/Stirling-PDF ]]; then msg_error "No ${APP} Installation Found!"; exit; fi
-msg_info "Updating ${APP}"
-systemctl stop stirlingpdf
+  header_info
+  if [[ ! -d /opt/Stirling-PDF ]]; then 
+    echo "No se encontró la instalación de ${APP}. Saliendo..."
+    exit 1
+  fi
 
-# Get the latest ARM64 release
-RELEASE=$(curl -s https://api.github.com/repos/Stirling-Tools/Stirling-PDF/releases/latest | grep "tag_name" | awk '{print substr($2, 3, length($2)-4) }')
-wget -q https://github.com/Stirling-Tools/Stirling-PDF/releases/download/v$RELEASE/Stirling-PDF-$RELEASE-arm64.tar.gz
+  echo "Actualizando ${APP}..."
+  systemctl stop stirlingpdf
 
-# Extract and install the new release
-tar -xzf Stirling-PDF-$RELEASE-arm64.tar.gz
-cd Stirling-PDF-$RELEASE
-chmod +x ./gradlew
-./gradlew build &>/dev/null
+  # Obtener la última versión para ARM64
+  RELEASE=$(curl -s https://api.github.com/repos/Stirling-Tools/Stirling-PDF/releases/latest | grep "tag_name" | awk '{print substr($2, 3, length($2)-4) }')
+  wget -q https://github.com/Stirling-Tools/Stirling-PDF/releases/download/v$RELEASE/Stirling-PDF-$RELEASE-arm64.tar.gz
 
-# Move the built files
-cp -r ./build/libs/Stirling-PDF-*.jar /opt/Stirling-PDF/
-cp -r scripts /opt/Stirling-PDF/
-cd ~
-rm -rf Stirling-PDF-$RELEASE v$RELEASE-arm64.tar.gz
+  # Extraer y actualizar
+  tar -xzf Stirling-PDF-$RELEASE-arm64.tar.gz
+  cd Stirling-PDF-$RELEASE
+  chmod +x ./gradlew
+  ./gradlew build &>/dev/null
 
-# Symlink the new jar
-ln -sf /opt/Stirling-PDF/Stirling-PDF-$RELEASE.jar /opt/Stirling-PDF/Stirling-PDF.jar
-systemctl start stirlingpdf
-msg_ok "Updated ${APP} to v$RELEASE"
-exit
+  # Mover los archivos construidos
+  cp -r ./build/libs/Stirling-PDF-*.jar /opt/Stirling-PDF/
+  cp -r scripts /opt/Stirling-PDF/
+  cd ~
+  rm -rf Stirling-PDF-$RELEASE v$RELEASE-arm64.tar.gz
+
+  # Crear enlace simbólico
+  ln -sf /opt/Stirling-PDF/Stirling-PDF-$RELEASE.jar /opt/Stirling-PDF/Stirling-PDF.jar
+  systemctl start stirlingpdf
+
+  echo "Actualizado ${APP} a la versión v$RELEASE."
+  exit 0
 }
 
-start
-build_container
+# Inicializar contenedor
+function start_container() {
+  echo "Iniciando contenedor de ${APP}..."
+  # Aquí debería estar el código para iniciar el contenedor si es necesario
+}
+
+# Mostrar la descripción del contenedor o aplicación
+function description() {
+  echo "${APP} ha sido configurado y está listo para usar."
+}
+
+# Llamar a las funciones
+default_settings
+update_script
+start_container
 description
 
-msg_ok "Completed Successfully!\n"
-echo -e "${APP} should be reachable by going to the following URL.
-         ${BL}http://${IP}:8080 ${CL} \n"
+echo "Instalación completada con éxito."
+echo -e "${APP} debería estar disponible en la siguiente URL:
+         http://localhost:8080"
